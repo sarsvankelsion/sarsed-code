@@ -1,4 +1,4 @@
-﻿<p align="center">
+<p align="center">
   <img width="160" alt="Sarsed Code Logo" src="./logo.png" />
 </p>
 
@@ -14,6 +14,10 @@
   <a href="https://github.com/sarsvankelsion/sarsed-code/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="License"></a>
   <a href="https://github.com/sarsvankelsion/zero-mem"><img src="https://img.shields.io/badge/Zero--Mem-Enabled-success?style=flat-square" alt="Zero-Mem"></a>
   <a href="https://github.com/sarsvankelsion/sarsed-code"><img src="https://img.shields.io/badge/Security-SAST%2FDAST-red?style=flat-square" alt="Security"></a>
+</p>
+
+<p align="center">
+  <img width="380" alt="Sarsed Code in VS Code" src="./assets/screenshot.png" />
 </p>
 
 ---
