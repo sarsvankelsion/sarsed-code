@@ -295,9 +295,12 @@ export namespace MemoryCapture {
             try: () => parseJson(digestSchema, result.result.text),
             catch: (error) => error,
           }).pipe(
-            Effect.catch(() =>
+            Effect.catch((err) =>
               Effect.gen(function* () {
-                yield* fail("digest parse_error")
+                MemoryLog.debug("digest parse fallback used", {
+                  sessionID: input.sessionID,
+                  error: err instanceof Error ? err.message : String(err),
+                })
                 return undefined
               }),
             ),
@@ -416,9 +419,12 @@ export namespace MemoryCapture {
             try: () => salvageTyped(result.result.text),
             catch: (error) => error,
           }).pipe(
-            Effect.catch(() =>
+            Effect.catch((err) =>
               Effect.gen(function* () {
-                yield* fail("consolidate parse_error")
+                MemoryLog.debug("consolidate parse fallback used", {
+                  sessionID: input.sessionID,
+                  error: err instanceof Error ? err.message : String(err),
+                })
                 return undefined
               }),
             ),

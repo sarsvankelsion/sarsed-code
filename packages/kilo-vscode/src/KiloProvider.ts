@@ -4954,7 +4954,9 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
       for (const sid of trackedByDir) targets.add(sid)
       if (local && active) targets.add(active)
       if (targets.size === 0 && local) targets.add(undefined)
-      const transient = event.type === "memory.error" && props.reason === MEMORY_TRANSIENT
+      const transient =
+        (event.type === "memory.error" && props.reason === MEMORY_TRANSIENT) ||
+        (event.type === "memory.error" && typeof props.reason === "string" && props.reason.includes("parse_error"))
       const detail = transient
         ? undefined
         : props.detail && typeof props.detail === "object"

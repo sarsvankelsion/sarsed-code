@@ -2,7 +2,7 @@
   "name": "sarsed-code",
   "displayName": "Sarsed Code: AI Coding Agent & Security Auditor",
   "description": "Open Source AI coding agent & authorized security validation orchestrator (adapted from sarsed.md). Features inline autocomplete, Zero-Mem cross-session recall with MEMORY.md, and custom modes for coding, planning, and security validation.",
-  "version": "7.7.0",
+  "version": "7.7.1",
   "icon": "assets/icons/logo-outline-black.png",
   "galleryBanner": {
     "color": "#FFFFFF",
@@ -11,7 +11,7 @@
   "publisher": "sarsed",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Kilo-Org/kilocode.git",
+    "url": "https://github.com/sarsvankelsion/sarsed-code.git",
     "directory": "packages/kilo-vscode"
   },
   "engines": {

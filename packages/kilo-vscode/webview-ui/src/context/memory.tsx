@@ -95,6 +95,7 @@ export const MemoryProvider: ParentComponent = (props) => {
     if (!current(message.sessionID)) return
     if (message.detail.type !== "error") return
     if (!message.detail.message) return
+    if (message.detail.message.includes("parse_error")) return
     const dedupeKey = `${message.sessionID ?? ""}:${message.detail.type ?? ""}:${message.detail.message}`
     const now = Date.now()
     if (last?.key === dedupeKey && now - last.time < EVENT_DEDUPE_MS) return
