@@ -1,0 +1,27 @@
+Find code snippets by semantic meaning and return ranked matches with file paths and line ranges.
+
+## When to use
+
+Use early for open-ended exploration when you know the intent
+but not the exact identifiers or the semantics. Once likely files or symbols are found,
+follow up with Grep and Read. Prefer Grep directly when exact terms are already known.
+
+## When NOT to use
+
+- Search for an exact symbol or regex pattern — use `Grep`
+- Find files by filename or extension — use `Glob`
+- Read the contents of a known file — use `Read`
+- Explore files outside the current workspace - use `Grep`, `Glob`, and `Read`
+
+## Examples
+
+- "User login and password hashing" → search for auth-related code by meaning
+- "Database connection pooling" → find conceptually similar implementations
+- "Session resume flow" → retrieve snippets involved in restoring session state
+- "Tool approval UI" with `path: "packages/opencode/src"` → combine a natural-language query with `path`
+
+## Constraints
+
+- Write the query in English.
+- Searches the entire current workspace by default. Limit semantic search to one subdirectory with `path`.
+- Cannot search outside the current workspace. Use other tools if this functionality is needed.

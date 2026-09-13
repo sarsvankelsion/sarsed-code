@@ -1,0 +1,390 @@
+package ai.kilocode.client.testing
+
+import ai.kilocode.rpc.KiloSessionRpcApi
+import ai.kilocode.rpc.dto.ChatEventDto
+import ai.kilocode.rpc.dto.CloudSessionDto
+import ai.kilocode.rpc.dto.CloudSessionListDto
+import ai.kilocode.rpc.dto.DiffFileDto
+import ai.kilocode.rpc.dto.MessageWithPartsDto
+import ai.kilocode.rpc.dto.ModelSelectionDto
+import ai.kilocode.rpc.dto.PermissionAlwaysRulesDto
+import ai.kilocode.rpc.dto.PermissionReplyDto
+import ai.kilocode.rpc.dto.PermissionRequestDto
+import ai.kilocode.rpc.dto.PartDto
+import ai.kilocode.rpc.dto.PromptDto
+import ai.kilocode.rpc.dto.QuestionReplyDto
+import ai.kilocode.rpc.dto.QuestionRequestDto
+import ai.kilocode.rpc.dto.SessionDto
+import ai.kilocode.rpc.dto.SessionActivityDto
+import ai.kilocode.rpc.dto.SessionChangeDto
+import ai.kilocode.rpc.dto.SessionListDto
+import ai.kilocode.rpc.dto.SessionShareDto
+import ai.kilocode.rpc.dto.SessionStatusDto
+import ai.kilocode.rpc.dto.SessionTimeDto
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+
+/**
+ * Fake [KiloSessionRpcApi] for testing.
+ *
+ * Configurable return values and call tracking. Push events
+ * via [events] and statuses via [statuses].
+ *
+ * Every `suspend` method asserts it is NOT called on the EDT —
+ * RPC calls must happen on background threads.
+ */
+class FakeSessionRpcApi : KiloSessionRpcApi {
+
+    /** The session returned by [create] and [get]. */
+    var session = SessionDto(
+        id = "ses_test",
+        projectID = "proj_test",
+        directory = "/test",
+        title = "Test Session",
+        version = "1",
+        time = SessionTimeDto(created = 0.0, updated = 0.0),
+    )
+
+    /** Message history returned by [messages]. */
+    val history = mutableListOf<MessageWithPartsDto>()
+    val histories = mutableMapOf<String, MutableList<MessageWithPartsDto>>()
+    val diffs = mutableMapOf<String, MutableList<DiffFileDto>>()
+    val diffSides = mutableMapOf<String, DiffFileDto>()
+    var historyGate: CompletableDeferred<Unit>? = null
+    var historyCalls = 0
+        private set
+
+    /** Recent sessions returned by [recent]. */
+    val recent = mutableListOf<SessionDto>()
+    var recentFailures = 0
+    var recentGate: CompletableDeferred<Unit>? = null
+
+    /** Local sessions returned by [list]. Accessed from concurrent coroutines in delete tests. */
+    val listed = java.util.concurrent.CopyOnWriteArrayList<SessionDto>()
+
+    /** Cloud sessions returned by [cloudSessions]. */
+    val cloud = mutableListOf<CloudSessionDto>()
+    var cloudCursor: String? = null
+    var importedCloudSession = session
+
+    /** Share/unshare call tracking and behaviour. */
+    val shares = mutableListOf<Triple<String, String, Boolean>>()
+    var shareUrl = "https://app.kilo.ai/s/token"
+    var shareThrows: Exception? = null
+
+    /** Push chat events here; tests collect from [events]. */
+    val events = MutableSharedFlow<ChatEventDto>(extraBufferCapacity = 64, replay = 64)
+
+    /** Push status updates here. */
+    val statuses = MutableStateFlow<Map<String, SessionStatusDto>>(emptyMap())
+
+    /** Push activity updates here. */
+    val activity = MutableStateFlow<Map<String, SessionActivityDto>>(emptyMap())
+
+    /** Push session lifecycle changes here. */
+    val changes = MutableSharedFlow<SessionChangeDto>(extraBufferCapacity = 64)
+
+    /** Pending permissions returned by [pendingPermissions]. */
+    val pendingPermissionList = mutableListOf<PermissionRequestDto>()
+
+    /** Pending questions returned by [pendingQuestions]. */
+    val pendingQuestionList = mutableListOf<QuestionRequestDto>()
+
+    /** Optional custom event stream factory for routing tests. */
+    var eventFlow: ((String, String) -> Flow<ChatEventDto>)? = null
+
+    // --- Call tracking ---
+
+    val enhancements = mutableListOf<Pair<String, String>>()
+    var enhanced = "Enhanced prompt"
+    var enhanceGate: CompletableDeferred<Unit>? = null
+    var enhanceThrows: Exception? = null
+    var revertGate: CompletableDeferred<Unit>? = null
+    var unrevertGate: CompletableDeferred<Unit>? = null
+    var revertThrows: Exception? = null
+    var unrevertThrows: Exception? = null
+    var commandThrows: Exception? = null
+    var promptThrows: Exception? = null
+    val prompts = mutableListOf<Triple<String, String, PromptDto>>()
+    val commands = mutableListOf<CommandCall>()
+    val attachmentParts = mutableListOf<AttachmentCall>()
+    val aborts = mutableListOf<Pair<String, String>>()
+    val compacts = mutableListOf<Triple<String, String, ModelSelectionDto>>()
+    val reverts = mutableListOf<RevertCall>()
+    val messageDeletes = mutableListOf<MessageDeleteCall>()
+    var messageDeleteResult = true
+    val unreverts = mutableListOf<Pair<String, String>>()
+    val permissionReplies = mutableListOf<Triple<String, String, PermissionReplyDto>>()
+    val permissionRulesSaved = mutableListOf<Triple<String, String, PermissionAlwaysRulesDto>>()
+    val questionReplies = mutableListOf<Triple<String, String, QuestionReplyDto>>()
+    val questionRejects = mutableListOf<Pair<String, String>>()
+    val deletes = java.util.concurrent.CopyOnWriteArrayList<Pair<String, String>>()
+    var deleteGate: CompletableDeferred<Unit>? = null
+    var deleteThrows: Exception? = null
+    val renames = mutableListOf<Triple<String, String, String>>()
+    var renameThrows: Exception? = null
+    val lists = mutableListOf<String>()
+    val recentCalls = mutableListOf<Pair<String, Int>>()
+    val cloudCalls = mutableListOf<CloudCall>()
+    val imports = mutableListOf<Pair<String, String>>()
+    var creates = 0
+        private set
+
+    /** When set, [create] throws it after incrementing [creates] — simulates a paused backend. */
+    var createThrows: Exception? = null
+
+    /** Fork call tracking. [forked] is what [fork] returns; when null it derives one from the source. */
+    val forks = java.util.concurrent.CopyOnWriteArrayList<ForkCall>()
+    var forked: SessionDto? = null
+    var forkThrows: Exception? = null
+
+    /** Holds [fork] open so a test can observe the window a second request would land in. */
+    var forkGate: CompletableDeferred<Unit>? = null
+
+    data class ForkCall(val id: String, val directory: String, val messageId: String?)
+    data class CloudCall(val directory: String, val cursor: String?, val limit: Int, val gitUrl: String?)
+    data class AttachmentCall(val id: String, val directory: String, val messageId: String, val partId: String, val attachmentKey: String?)
+    data class CommandCall(val id: String, val directory: String, val command: String, val arguments: String, val prompt: PromptDto)
+    data class RevertCall(val id: String, val directory: String, val message: String, val part: String?)
+    data class MessageDeleteCall(val id: String, val directory: String, val message: String)
+
+    // --- Implementation ---
+
+    override suspend fun create(directory: String): SessionDto {
+        assertNotEdt("create")
+        creates++
+        createThrows?.let { throw it }
+        return session
+    }
+
+    override suspend fun fork(id: String, directory: String, messageId: String?): SessionDto {
+        assertNotEdt("fork")
+        forks.add(ForkCall(id, directory, messageId))
+        forkGate?.await()
+        forkThrows?.let { throw it }
+        val source = listed.firstOrNull { it.id == id } ?: session
+        return forked ?: source.copy(id = "${id}_fork", directory = directory, title = "${source.title} (fork #1)")
+    }
+
+    override suspend fun list(directory: String): SessionListDto {
+        assertNotEdt("list")
+        lists.add(directory)
+        return SessionListDto(listed.toList(), emptyMap())
+    }
+
+    override suspend fun recent(directory: String, limit: Int): SessionListDto {
+        assertNotEdt("recent")
+        recentCalls.add(directory to limit)
+        recentGate?.await()
+        if (recentFailures > 0) {
+            recentFailures--
+            throw IllegalStateException("recent unavailable")
+        }
+        return SessionListDto(recent.take(limit), emptyMap())
+    }
+
+    override suspend fun get(id: String, directory: String): SessionDto {
+        assertNotEdt("get")
+        return session
+    }
+
+    override suspend fun delete(id: String, directory: String) {
+        assertNotEdt("delete")
+        deleteThrows?.let { throw it }
+        deleteGate?.await()
+        deletes.add(id to directory)
+        listed.removeAll { it.id == id }
+    }
+
+    override suspend fun rename(id: String, directory: String, title: String): SessionDto {
+        assertNotEdt("rename")
+        renameThrows?.let { throw it }
+        renames.add(Triple(id, directory, title))
+        val updated = listed.indexOfFirst { it.id == id }
+        if (updated >= 0) {
+            listed[updated] = listed[updated].copy(title = title)
+            return listed[updated]
+        }
+        return session.copy(id = id, title = title)
+    }
+
+    override suspend fun share(id: String, directory: String): SessionDto {
+        assertNotEdt("share")
+        shares.add(Triple(id, directory, true))
+        shareThrows?.let { throw it }
+        return current(id).copy(share = SessionShareDto(shareUrl))
+    }
+
+    override suspend fun unshare(id: String, directory: String): SessionDto {
+        assertNotEdt("unshare")
+        shares.add(Triple(id, directory, false))
+        shareThrows?.let { throw it }
+        return current(id).copy(share = null)
+    }
+
+    private fun current(id: String): SessionDto =
+        listed.firstOrNull { it.id == id } ?: session.copy(id = id)
+
+    override suspend fun cloudSessions(directory: String, cursor: String?, limit: Int, gitUrl: String?): CloudSessionListDto {
+        assertNotEdt("cloudSessions")
+        cloudCalls.add(CloudCall(directory, cursor, limit, gitUrl))
+        return CloudSessionListDto(cloud.take(limit), cloudCursor)
+    }
+
+    override suspend fun importCloudSession(id: String, directory: String): SessionDto {
+        assertNotEdt("importCloudSession")
+        imports.add(id to directory)
+        return importedCloudSession
+    }
+
+    override suspend fun statuses(): Flow<Map<String, SessionStatusDto>> {
+        assertNotEdt("statuses")
+        return statuses
+    }
+
+    override suspend fun activity(): Flow<Map<String, SessionActivityDto>> {
+        assertNotEdt("activity")
+        return activity
+    }
+
+    override suspend fun changes(): Flow<SessionChangeDto> {
+        assertNotEdt("changes")
+        return changes
+    }
+
+    override suspend fun setDirectory(id: String, directory: String) {
+        assertNotEdt("setDirectory")
+    }
+
+    override suspend fun getDirectory(id: String, fallback: String): String {
+        assertNotEdt("getDirectory")
+        return fallback
+    }
+
+    override suspend fun enhancePrompt(directory: String, text: String): String {
+        assertNotEdt("enhancePrompt")
+        enhancements.add(directory to text)
+        enhanceGate?.await()
+        enhanceThrows?.let { throw it }
+        return enhanced
+    }
+
+    override suspend fun prompt(id: String, directory: String, prompt: PromptDto) {
+        assertNotEdt("prompt")
+        promptThrows?.let { throw it }
+        prompts.add(Triple(id, directory, prompt))
+    }
+
+    override suspend fun command(id: String, directory: String, command: String, arguments: String, prompt: PromptDto) {
+        assertNotEdt("command")
+        commandThrows?.let { throw it }
+        commands.add(CommandCall(id, directory, command, arguments, prompt))
+    }
+
+    override suspend fun abort(id: String, directory: String) {
+        assertNotEdt("abort")
+        aborts.add(id to directory)
+    }
+
+    override suspend fun compact(id: String, directory: String, model: ModelSelectionDto) {
+        assertNotEdt("compact")
+        compacts.add(Triple(id, directory, model))
+    }
+
+    override suspend fun revert(id: String, directory: String, messageID: String, partID: String?) {
+        assertNotEdt("revert")
+        revertGate?.await()
+        revertThrows?.let { throw it }
+        reverts.add(RevertCall(id, directory, messageID, partID))
+    }
+
+    override suspend fun deleteMessage(id: String, directory: String, messageID: String): Boolean {
+        assertNotEdt("deleteMessage")
+        messageDeletes.add(MessageDeleteCall(id, directory, messageID))
+        return messageDeleteResult
+    }
+
+    override suspend fun unrevert(id: String, directory: String) {
+        assertNotEdt("unrevert")
+        unrevertGate?.await()
+        unrevertThrows?.let { throw it }
+        unreverts.add(id to directory)
+    }
+
+    override suspend fun messages(id: String, directory: String): List<MessageWithPartsDto> {
+        assertNotEdt("messages")
+        historyCalls++
+        historyGate?.await()
+        return histories[id]?.toList() ?: history.toList()
+    }
+
+    override suspend fun diff(id: String, directory: String): List<DiffFileDto> {
+        assertNotEdt("diff")
+        return diffs[id]?.toList().orEmpty()
+    }
+
+    override suspend fun diffSides(sessionId: String?, directory: String, file: DiffFileDto, messageId: String?): DiffFileDto? {
+        assertNotEdt("diffSides")
+        return diffSides[file.file]
+    }
+
+    override suspend fun attachmentPart(id: String, directory: String, messageId: String, partId: String, attachmentKey: String?): PartDto? {
+        assertNotEdt("attachmentPart")
+        attachmentParts.add(AttachmentCall(id, directory, messageId, partId, attachmentKey))
+        historyGate?.await()
+        return history
+            .firstOrNull { it.info.id == messageId }
+            ?.parts
+            ?.firstOrNull {
+                if (it.type != "file") return@firstOrNull false
+                if (!attachmentKey.isNullOrBlank()) key(it.id, it.filename.orEmpty(), it.url.orEmpty()) == attachmentKey
+                else it.id == partId
+            }
+    }
+
+    override suspend fun events(id: String, directory: String): Flow<ChatEventDto> {
+        assertNotEdt("events")
+        return eventFlow?.invoke(id, directory) ?: events
+    }
+
+    var replyPermissionThrows: Exception? = null
+
+    override suspend fun replyPermission(requestId: String, directory: String, reply: PermissionReplyDto) {
+        assertNotEdt("replyPermission")
+        replyPermissionThrows?.let { throw it }
+        permissionReplies.add(Triple(requestId, directory, reply))
+    }
+
+    override suspend fun savePermissionRules(requestId: String, directory: String, rules: PermissionAlwaysRulesDto) {
+        assertNotEdt("savePermissionRules")
+        permissionRulesSaved.add(Triple(requestId, directory, rules))
+    }
+
+    override suspend fun replyQuestion(requestId: String, directory: String, answers: QuestionReplyDto) {
+        assertNotEdt("replyQuestion")
+        questionReplies.add(Triple(requestId, directory, answers))
+    }
+
+    override suspend fun rejectQuestion(requestId: String, directory: String) {
+        assertNotEdt("rejectQuestion")
+        questionRejects.add(requestId to directory)
+    }
+
+    override suspend fun pendingPermissions(directory: String): List<PermissionRequestDto> {
+        assertNotEdt("pendingPermissions")
+        return pendingPermissionList.toList()
+    }
+
+    override suspend fun pendingQuestions(directory: String): List<QuestionRequestDto> {
+        assertNotEdt("pendingQuestions")
+        return pendingQuestionList.toList()
+    }
+
+    private fun key(part: String, name: String, url: String): String {
+        val value = listOf(part, name, url).joinToString("\u0000")
+        val bytes = java.security.MessageDigest.getInstance("SHA-256").digest(value.toByteArray(Charsets.UTF_8))
+        return bytes.take(16).joinToString("") { "%02x".format(it) }
+    }
+}
