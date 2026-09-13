@@ -12,7 +12,7 @@
 <p align="center">
   <a href="https://github.com/sarsvankelsion/sarsed-code/releases"><img src="https://img.shields.io/badge/Release-v7.7.0-crimson?style=flat-square" alt="Version"></a>
   <a href="https://github.com/sarsvankelsion/sarsed-code/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="License"></a>
-  <a href="https://github.com/sarsvankelsion/sarsed-code"><img src="https://img.shields.io/badge/Zero--Mem-Enabled-success?style=flat-square" alt="Zero-Mem"></a>
+  <a href="https://github.com/sarsvankelsion/zero-mem"><img src="https://img.shields.io/badge/Zero--Mem-Enabled-success?style=flat-square" alt="Zero-Mem"></a>
   <a href="https://github.com/sarsvankelsion/sarsed-code"><img src="https://img.shields.io/badge/Security-SAST%2FDAST-red?style=flat-square" alt="Security"></a>
 </p>
 
@@ -29,8 +29,18 @@ Whether you are authoring clean application code, auditing critical codebases fo
 ## Key Highlights
 
 ### 🧠 Zero-Mem Architecture (0 Token Cost)
-- **Zero-Token Memory Operations**: Based on research from **The Hong Kong Polytechnic University (HK PolyU)** (*Zero-Mem: Zero-Token Memory Operations for LLM Agents*, arXiv:2607.29377).
-- **Substrate & Graph Propagation**: Replaces lossy, expensive LLM-based memory summaries with deterministic trace substrates, BM25 indexing, dense hashing, and Personalized PageRank (PPR) graph propagation.
+
+```text
+________ ___________  ____             _____   ____   _____  
+\___   // __ \_  __ \/  _ \   ______  /     \_/ __ \ /     \ 
+ /    /\  ___/|  | \(  <_> ) /_____/ |  Y Y  \  ___/|  Y Y  \
+/_____ \\___  >__|   \____/          |__|_|  /\___  >__|_|  /
+      \/    \/                             \/     \/      \/ 
+```
+
+> **Zero-Mem Subsystem**: Built upon research from **The Hong Kong Polytechnic University (HK PolyU)** (*Zero-Mem: Zero-Token Memory Operations for LLM Agents*, arXiv:2607.29377). Standalone library available at [sarsvankelsion/zero-mem](https://github.com/sarsvankelsion/zero-mem).
+
+- **Zero-Token Memory Operations**: Replaces lossy, expensive LLM-based memory summaries with deterministic trace substrates, BM25 indexing, dense hashing, and Personalized PageRank (PPR) graph propagation.
 - **Dual-Projection**: Full human-editable `.md` projection (`memory.md`) bidirectionally synchronized with fast structured traces.
 - **Context Budgeting**: Real-time context estimation and token budget enforcement with strict `assertZeroToken` verification.
 
@@ -115,8 +125,8 @@ sarsed-code/
 
 ## Related Repositories
 
+- **[zero-mem](https://github.com/sarsvankelsion/zero-mem)**: Standalone zero-token memory operations engine & benchmark suite based on HK PolyU research.
 - **[sarsed](https://github.com/sarsvankelsion/sarsed)**: Private security knowledge base, specialized skill packs (vulnerabilities, reverse-skill, frameworks), and agent configurations.
-- **[sarsed-zero-mem](https://github.com/sarsvankelsion/sarsed-zero-mem)**: Standalone implementation and benchmarking suite for HK PolyU's Zero-Mem algorithm.
 
 ---
 
